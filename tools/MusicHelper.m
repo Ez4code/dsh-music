@@ -62,6 +62,20 @@ static void WriteJSON(int fd, NSDictionary *payload) {
   }
 }
 
+static void Log(NSString *message) {
+  static NSString *const path = @"/tmp/dsh-music/helper.log";
+  NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:path error:nil];
+  if ([attributes fileSize] > 512 * 1024) {
+    [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+  }
+  NSString *line = [NSString stringWithFormat:@"%@ %@\n", [NSDate date], message];
+  FILE *file = fopen(path.fileSystemRepresentation, "a");
+  if (file) {
+    fputs(line.UTF8String, file);
+    fclose(file);
+  }
+}
+
 static NSString *LockPath(void) {
   return [kDirectory stringByAppendingPathComponent:@"helper.lock"];
 }
@@ -84,8 +98,12 @@ static NSString *SocketPath(void) {
   return [kDirectory stringByAppendingPathComponent:@"helper.sock"];
 }
 
+static int gSocketOwned = 0;
+
 static void UnlinkSocket(void) {
-  unlink(SocketPath().fileSystemRepresentation);
+  if (gSocketOwned) {
+    unlink(SocketPath().fileSystemRepresentation);
+  }
 }
 
 int main(int argc, char **argv) {
@@ -112,7 +130,6 @@ int main(int argc, char **argv) {
 
     signal(SIGTERM, SIG_DFL);
     signal(SIGINT, SIG_DFL);
-    atexit(UnlinkSocket);
 
     NSString *sockPath = SocketPath();
     NSString *lockPath = LockPath();
@@ -140,6 +157,8 @@ int main(int argc, char **argv) {
       return 3;
     }
     chmod(sockPath.fileSystemRepresentation, 0600);
+    gSocketOwned = 1;
+    atexit(UnlinkSocket);
     if (listen(fd, 16) != 0) {
       close(fd);
       return 4;
@@ -160,16 +179,19 @@ int main(int argc, char **argv) {
 
       uint32_t length = 0;
       if (!ReadExact(client, &length, sizeof(length))) {
+        Log(@"request: header read failed");
         close(client);
         return;
       }
       length = ntohl(length);
       if (length == 0 || length > (1u << 20)) {
+        Log([NSString stringWithFormat:@"request: bad length %u", length]);
         close(client);
         return;
       }
       NSMutableData *buffer = [NSMutableData dataWithLength:length];
       if (!ReadExact(client, buffer.mutableBytes, length)) {
+        Log(@"request: body read failed");
         close(client);
         return;
       }
@@ -183,17 +205,21 @@ int main(int argc, char **argv) {
       } else if ([request[@"ping"] boolValue]) {
         response = @{@"ok": @YES, @"result": @"pong"};
       } else if ([request[@"source"] isKindOfClass:[NSString class]]) {
+        NSTimeInterval startedAt = [NSDate timeIntervalSinceReferenceDate];
         __block NSDictionary *scriptResponse = nil;
         dispatch_semaphore_t finished = dispatch_semaphore_create(0);
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
           scriptResponse = RunSource(request[@"source"]);
           dispatch_semaphore_signal(finished);
         });
-        if (dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_SEC)) != 0) {
+        if (dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, 12 * NSEC_PER_SEC)) != 0) {
           // The Music app stopped answering; exit so the next call starts clean.
-          fprintf(stderr, "dsh-music: AppleScript watchdog expired\n");
+          Log([NSString stringWithFormat:@"watchdog expired after %.0fms; exiting",
+               ([NSDate timeIntervalSinceReferenceDate] - startedAt) * 1000]);
           exit(9);
         }
+        Log([NSString stringWithFormat:@"request done in %.0fms",
+             ([NSDate timeIntervalSinceReferenceDate] - startedAt) * 1000]);
         response = scriptResponse;
       } else {
         response = @{@"ok": @NO, @"error": @"missing source"};

@@ -130,13 +130,21 @@ async function startDaemon(options) {
 /** One shared launch promise so concurrent first calls cannot race. */
 let daemonPromise = null
 
-function ensureDaemon(options) {
-  if (!daemonPromise) {
-    daemonPromise = startDaemon(options).catch((error) => {
-      daemonPromise = null
-      throw error
-    })
-  }
+async function ensureDaemon(options) {
+  if (daemonPromise) return daemonPromise
+  daemonPromise = (async () => {
+    // Reuse a daemon that already answers instead of launching a duplicate.
+    try {
+      await request(options.socketPath, { ping: true }, 500)
+      return
+    } catch {
+      // not listening yet
+    }
+    await startDaemon(options)
+  })().catch((error) => {
+    daemonPromise = null
+    throw error
+  })
   return daemonPromise
 }
 
