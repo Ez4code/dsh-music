@@ -7,6 +7,7 @@
 ![platform](https://img.shields.io/badge/platform-macOS%2026-black)
 ![dsh](https://img.shields.io/badge/DeepSeek%20Harness-plugin-4B6BFB)
 ![license](https://img.shields.io/badge/license-MIT-green)
+![latency](https://img.shields.io/badge/tool%20latency-50--270%20ms-brightgreen)
 
 如果你正在搜「**怎么用脚本控制 macOS 音乐**」「**AppleScript 控制 Music.app 报 -10004**」「**让 IM 机器人 / Agent 点歌**」「**微信控制电脑播放音乐**」——本项目把踩过的坑和解法都写在下面了，代码可以直接复用。
 
@@ -55,6 +56,40 @@ DSH：正在播放：Sports car — Tate McRae《SO CLOSE TO WHAT???》
 
 ---
 
+## ⚡ 快：手机一放下，音乐就来了
+
+> 晚高峰堵在路上，突然想听《Bang!》。
+> 掏出手机、对着微信按住说话：「放一首 Bang!」——松手、锁屏、把手机往副驾一扔。
+> 还没坐直，Mac 已经响了。
+
+这不是段子：从 Agent 决定调用工具，到「音乐」App 真正出声，**工具侧只要 0.13–0.27 秒**。
+
+| 动作 | 工具侧耗时 |
+|---|---|
+| 点歌并开始播放 | 130–270 ms |
+| 暂停 / 继续 / 切歌 / 调音量 | **50–70 ms** |
+| 查「现在在放什么」 | 约 130 ms |
+| 搜资料库 | 70–85 ms |
+| 当天第一次冷启动 | 300–500 ms（只发生一次） |
+
+端到端还取决于模型推理和 IM 通道，插件能做的是把工具这一侧压到几十毫秒，**让它不再成为等待的一部分**。
+
+### 为了这几十毫秒做了什么
+
+| 工具 | 优化前（每次调用冷启动助手） | 现在（常驻守护进程） |
+|---|---|---|
+| `music_play` | 约 1730 ms | 约 130–270 ms |
+| `music_control` | 约 1000 ms | 50–70 ms |
+| `music_status` | 275–390 ms | 约 130 ms |
+| `music_search` | 约 390 ms | 70–85 ms |
+| `music_play`（未命中） | 约 280 ms | 约 65 ms |
+
+1. **常驻守护进程**：第一次调用后，助手一直监听 Unix socket，之后每次只是一次 socket 往返（10–30 ms），不再为每个请求启动新进程。
+2. **等状态变化，不傻等**：播放/暂停改成短轮询等 `player state` 真的变化，替代固定的 `delay 0.7 / 1.5` 秒。
+3. **别做无用功**：控制类脚本不再顺手多读一次系统音量；插件重载时先 `ping` 现有守护进程，不会重复拉起助手。
+
+（以上为本机实测，资料库 75 首。）
+
 ## 它能做什么
 
 | 能力 | 说明 |
@@ -94,18 +129,6 @@ flowchart LR
 2. **常驻守护进程**：助手监听 Unix socket（长度前缀 + JSON，一次连接一个请求）。第一次调用冷启动约 300–500 ms，之后每次只是一次 socket 往返（10–30 ms）+ AppleScript 执行。
 3. **生命周期**：插件卸载时发送 `{"shutdown": true}` 让助手退出；空闲 5 分钟自动退出；socket 文件权限 `0600`；重复启动会用文件锁 + socket 探测直接退出，不会抢走正在工作的守护进程。
 4. **串行执行**：AppleScript 调用在插件内排队，助手一次只处理一个请求。
-
-### 性能（本机实测，资料库 75 首）
-
-| 工具 | 优化前（每次冷启动助手） | 现在（常驻 socket） |
-|---|---|---|
-| `music_status` | 275–390 ms | 约 130 ms |
-| `music_control` | 约 1000 ms | 50–70 ms |
-| `music_play` | 约 1730 ms | 约 130–270 ms |
-| `music_play`（未命中） | 约 280 ms | 约 65 ms |
-| `music_search` | 约 390 ms | 70–85 ms |
-
----
 
 ## 配置
 
