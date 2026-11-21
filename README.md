@@ -16,9 +16,10 @@
 
 ```bash
 # 1. 前置：macOS 26+、DSH、已登录 Apple Music 且资料库里有歌
-# 2. 把本目录装进 DSH
-#    DSH → 插件（Plugins）→ 添加插件（Add plugin）→ 选择本目录
-#    或交给 Agent：plugin_manager → install_bundle(<本目录>)
+git clone https://github.com/Ez4code/dsh-music.git
+# 2. 装进 DSH
+#    DSH → 插件（Plugins）→ 添加插件（Add plugin）→ 选择刚克隆的 dsh-music 目录
+#    或让 Agent 执行：plugin_manager → install_bundle("/path/to/dsh-music")
 # 3. 新开一个会话验证
 ```
 
