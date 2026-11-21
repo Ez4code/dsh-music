@@ -1,6 +1,6 @@
 # dsh-music — 让 DeepSeek Harness 控制 Mac 上的 Apple Music
 
-给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 装上四个工具，就能用一句自然语言控制本机「音乐」App：点歌、暂停、切歌、调系统音量、查当前播放。
+**一个 DeepSeek Harness 插件**（Host-only bundle）。装上它，DSH 就能用一句自然语言控制本机「音乐」App——点歌、暂停、切歌、调系统音量、查当前播放。插件向 Agent 注册 `music_play`、`music_search`、`music_control`、`music_status` 四个工具，你不用记这些名字，直接说话就行。
 
 **真正的亮点**：配合基础插件 [`@xmanrui/dsh-im`](https://www.npmjs.com/package/@xmanrui/dsh-im)，你可以在**微信 / QQ / 飞书 / Telegram** 里发一句话，让家里的 Mac 放歌——人不在电脑前也能点歌。
 
@@ -34,7 +34,9 @@ flowchart LR
 
 ---
 
-## 功能
+## 插件提供的工具
+
+插件是一个 bundle（`package.json` 里 `dsh.bundle.patch` 指向 `cordis.patch.yml`），安装后向 Agent 注册四个工具：
 
 | 工具 | 说明 |
 |---|---|
@@ -114,7 +116,7 @@ flowchart LR
 
 ```
 dsh-music/
-├── index.js              # 插件实现：四个工具 + 助手守护进程客户端
+├── index.js              # 插件实现：工具注册 + 助手守护进程客户端
 ├── cordis.patch.yml      # bundle 补丁：插入插件行
 ├── package.json          # bundle 清单（dsh.bundle.patch）
 ├── locale/{en,zh}.json   # 插件页里的标题与描述
@@ -140,7 +142,7 @@ dsh-music/
 
 ## English
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that lets the agent control the macOS **Music** app: play a library track by title/artist/album, play a user playlist, pause/resume, skip, stop, set the **system output volume**, and read what is playing.
+A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin (Host-only bundle) that lets the agent control the macOS **Music** app: play a library track by title/artist/album, play a user playlist, pause/resume, skip, stop, set the **system output volume**, and read what is playing. It registers four tools — `music_play`, `music_search`, `music_control`, `music_status`.
 
 Combined with [`@xmanrui/dsh-im`](https://www.npmjs.com/package/@xmanrui/dsh-im), you can send "play something" from WeChat, QQ, Feishu, or Telegram and the Mac starts playing — no extra glue code, because both plugins share the same agent.
 
