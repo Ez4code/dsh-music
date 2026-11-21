@@ -1,0 +1,33 @@
+{
+  "name": "@local/dsh-music",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DeepSeek Harness plugin for the macOS Music app: library playback, transport control, system output volume, and now-playing status.",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "README.md",
+    "locale/*.json",
+    "icon.svg",
+    "assets/MusicHelper.app"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "apple-music",
+    "macos",
+    "music"
+  ]
+}

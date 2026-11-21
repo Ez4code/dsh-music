@@ -1,0 +1,6 @@
+- insert:
+    - id: dsh-music
+      name: '@local/dsh-music'
+      config:
+        # 只控制本机资料库播放；不再访问任何网络接口
+        timeoutSec: 20

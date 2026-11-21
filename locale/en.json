@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Music playback",
+    "description": "Lets the agent control music already added to the macOS Music library: play a track by title, artist, or album, play a user playlist, pause and resume, skip tracks, set the system output volume, and read what is playing, including mute state. Tools: music_play, music_search, music_control, music_status. It uses no network, records nothing, and reports songs that are not in the library instead of searching the catalog."
+  }
+}
