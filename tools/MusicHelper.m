@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -61,6 +62,24 @@ static void WriteJSON(int fd, NSDictionary *payload) {
   }
 }
 
+static NSString *LockPath(void) {
+  return [kDirectory stringByAppendingPathComponent:@"helper.lock"];
+}
+
+static BOOL SocketIsServed(NSString *path) {
+  int probe = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (probe < 0) {
+    return NO;
+  }
+  struct sockaddr_un addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sun_family = AF_UNIX;
+  strlcpy(addr.sun_path, path.fileSystemRepresentation, sizeof(addr.sun_path));
+  BOOL served = connect(probe, (struct sockaddr *)&addr, sizeof(addr)) == 0;
+  close(probe);
+  return served;
+}
+
 static NSString *SocketPath(void) {
   return [kDirectory stringByAppendingPathComponent:@"helper.sock"];
 }
@@ -96,6 +115,16 @@ int main(int argc, char **argv) {
     atexit(UnlinkSocket);
 
     NSString *sockPath = SocketPath();
+    NSString *lockPath = LockPath();
+    int lockFD = open(lockPath.fileSystemRepresentation, O_CREAT | O_RDWR, 0600);
+    if (lockFD < 0 || flock(lockFD, LOCK_EX | LOCK_NB) != 0) {
+      // Another daemon owns the lock; this launch is redundant.
+      return 0;
+    }
+    if (SocketIsServed(sockPath)) {
+      // A live daemon already answers on this socket; never rebind it.
+      return 0;
+    }
     UnlinkSocket();
 
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -154,7 +183,18 @@ int main(int argc, char **argv) {
       } else if ([request[@"ping"] boolValue]) {
         response = @{@"ok": @YES, @"result": @"pong"};
       } else if ([request[@"source"] isKindOfClass:[NSString class]]) {
-        response = RunSource(request[@"source"]);
+        __block NSDictionary *scriptResponse = nil;
+        dispatch_semaphore_t finished = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+          scriptResponse = RunSource(request[@"source"]);
+          dispatch_semaphore_signal(finished);
+        });
+        if (dispatch_semaphore_wait(finished, dispatch_time(DISPATCH_TIME_NOW, 8 * NSEC_PER_SEC)) != 0) {
+          // The Music app stopped answering; exit so the next call starts clean.
+          fprintf(stderr, "dsh-music: AppleScript watchdog expired\n");
+          exit(9);
+        }
+        response = scriptResponse;
       } else {
         response = @{@"ok": @NO, @"error": @"missing source"};
       }
