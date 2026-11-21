@@ -29,5 +29,14 @@
     "apple-music",
     "macos",
     "music"
-  ]
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ez4code/dsh-music.git"
+  },
+  "homepage": "https://github.com/Ez4code/dsh-music#readme",
+  "bugs": {
+    "url": "https://github.com/Ez4code/dsh-music/issues"
+  },
+  "license": "MIT"
 }
